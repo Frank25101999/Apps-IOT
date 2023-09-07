@@ -1,7 +1,8 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 
-contador = 5
+
+contador = 0
 
 class MyHTTPRequestHandler(BaseHTTPRequestHandler):
     def _set_response(self, content_type="text/plain"):
@@ -17,28 +18,30 @@ class MyHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         content_length = int(self.headers["Content-Length"])
         post_data = self.rfile.read(content_length)
-        
+
         body_json = json.loads(post_data.decode())
         print(body_json['action'])
 
-        global contador
-        if(body_json['action']=='ASC'):
-            contador +=1
-        elif(body_json['action']=='DES'):
-            contador -=1
 
         # Print the complete HTTP request
         print("\n----- Incoming POST Request -----")
         print(f"Requestline: {self.requestline}")
         print(f"Headers:\n{self.headers}")
         print(f"Body:\n{post_data.decode()}")
+        global contador
+        if "action" in body_json and "quantity" in body_json:
+            action = body_json["action"]
+            quantity = body_json["quantity"]
+        if(body_json['action']=='ASC'):
+            contador += int(body_json['quantity'])
+        elif(body_json['action']=='DES'):
+            contador -= int(body_json['quantity'])
         print("-------------------------------")
 
         # Respond to the client
-        response_data = json.dumps({"message": "Received POST data", "data": post_data.decode(),"Status":"OK"})
+        response_data = json.dumps({"message": "Received POST data", "data": post_data.decode(), "status":"OK"})
         self._set_response("application/json")
         self.wfile.write(response_data.encode())
-
 
 def run_server(server_class=HTTPServer, handler_class=MyHTTPRequestHandler, port=7800):
     server_address = ("", port)
