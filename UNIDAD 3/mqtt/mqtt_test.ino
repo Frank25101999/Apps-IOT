@@ -1,15 +1,31 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <WiFiClientSecure.h>
+#include <ArduinoJson.h>
+#include <DHT.h>
 
+#define DHTPIN 18
+#define DHTTYPE DHT11
+
+DHT dht(DHTPIN, DHTTYPE);
+
+#define ledPin 4
+#define ascPin 15
+#define desPin 2
+
+int contador = 0;
+
+bool asc, des = false;
+
+bool temp, humd = false;
 // WiFi
-const char *ssid = "W_Aula_WB11";   // Enter your WiFi name
-const char *password = "itcolima6"; // Enter WiFi password
+const char *ssid = "W_Aula_WB11";
+const char *password = "itcolima6";
 
 // MQTT Broker
-const char *mqtt_broker = "c098ae50.ala.us-east-1.emqxsl.com"; // broker address
+const char *mqtt_broker = "ue91a21d.ala.us-east-1.emqxsl.com"; // broker address
 const char *topic = "test";                                    // define topic
-const char *mqtt_username = "esp32";                           // username for authentication
+const char *mqtt_username = "mqtt";                            // username for authentication
 const char *mqtt_password = "password";                        // password for authentication
 const int mqtt_port = 8883;                                    // port of MQTT over TLS/SSL
 
@@ -52,6 +68,7 @@ void setup()
 {
   // Set software serial baud to 115200;
   Serial.begin(115200);
+  dht.begin();
   // connecting to a WiFi network
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED)
@@ -86,6 +103,11 @@ void setup()
   // publish and subscribe
   client.publish(topic, "Hi EMQX I'm ESP32 ^^"); // publish to the topic
   client.subscribe(topic);                       // subscribe from the topic
+
+  pinMode(ledPin, OUTPUT);
+  pinMode(ascPin, INPUT_PULLUP);
+  pinMode(desPin, INPUT_PULLUP);
+
 }
 
 void callback(char *topic, byte *payload, unsigned int length)
@@ -98,6 +120,57 @@ void callback(char *topic, byte *payload, unsigned int length)
     Serial.print((char)payload[i]);
   }
   Serial.println();
+
+// Create a dynamic JSON document based on the payload size
+  DynamicJsonDocument jsonDocument(1024);
+
+  // Parse the JSON payload
+  DeserializationError error = deserializeJson(jsonDocument, payload, length);
+
+  if (error)
+  {
+    Serial.print("JSON parsing failed: ");
+    Serial.println(error.c_str());
+    return;
+  }
+
+  // Check if the "led" key is present in the JSON
+  if (jsonDocument.containsKey("led"))
+  {
+    int ledValue = jsonDocument["led"].as<int>();
+
+    // Do something with the "led" value, e.g., turn on or off an LED
+    if (ledValue == 1)
+    {
+      // Turn on the LED
+      digitalWrite(ledPin, HIGH);
+      Serial.println("LED is ON");
+    }
+    else if (ledValue == 0)
+    {
+      // Turn off the LED
+      digitalWrite(ledPin, LOW);
+      Serial.println("LED is OFF");
+    }
+    else
+    {
+      Serial.println("Invalid 'led' value. Expected 0 or 1.");
+    }
+  }
+
+   if (jsonDocument.containsKey("temperature"))
+   {
+      Serial.println("Temperature");
+      // Usar sprintf para formatear el mensaje
+      temp = true;
+   }
+
+      if (jsonDocument.containsKey("humidity"))
+   {
+      Serial.println("Humidity");
+      humd = true;
+   }
+
   Serial.println("-----------------------");
 }
 
@@ -130,4 +203,60 @@ void loop()
     reconnect();
   }
   client.loop();
+
+  if(digitalRead(ascPin) == HIGH) {
+    contador++;
+    // Crear un buffer para el mensaje
+    char mensaje[16]; // Ajusta el tamaño del buffer según tus necesidades
+
+    // Usar sprintf para formatear el mensaje
+    sprintf(mensaje, "contador %d", contador);
+    client.publish(topic, mensaje); // publish to the topic
+    delay(300);
+    Serial.println("Asc");
+  }
+
+  float temperature = dht.readTemperature();
+  float humidity = dht.readHumidity();
+  
+  if(digitalRead(desPin) == HIGH) {
+    contador--;
+    // Crear un buffer para el mensaje
+    char mensaje[16]; // Ajusta el tamaño del buffer según tus necesidades
+
+    // Usar sprintf para formatear el mensaje
+    sprintf(mensaje, "contador %d", contador);
+    client.publish(topic, mensaje); // publish to the topic
+    delay(300);
+    Serial.println("Desc");
+  }
+  if(temp) {
+      char mensaje[16]; // Ajusta el tamaño del buffer según tus necesidades
+
+      int val_int = (int) temperature;   // compute the integer part of the float
+
+      float val_float = (abs(temperature) - abs(val_int)) * 100000;
+
+      int val_fra = (int) val_float;
+
+     // Usar sprintf para formatear el mensaje
+      sprintf (mensaje, "temp %d.%d", val_int, val_fra);
+      // sprintf(mensaje, "temp %d", temperatureInt);
+      client.publish(topic, mensaje);
+      temp = false;
+  }
+  if(humd) {
+      char mensaje[16]; // Ajusta el tamaño del buffer según tus necesidades
+
+      int val_int = (int) humdity;   // compute the integer part of the float
+
+      float val_float = (abs(temperature) - abs(val_int)) * 100000;
+
+      int val_fra = (int) val_float;
+
+     // Usar sprintf para formatear el mensaje
+      sprintf (mensaje, "hum %d.%d", val_int, val_fra);
+      client.publish(topic, mensaje);
+      humd = false;
+  } 
 }

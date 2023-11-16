@@ -1,0 +1,18 @@
+int trigpin = 8;
+int echopin = 7;
+
+void setup(){
+    pinmode(trigpin,OUTPUT);
+    pinmode(echopin,OUTPUT);
+    Serial.begin(9600);
+}
+
+void loop(){
+    digitalWrite(trigoin,HIGH);
+    delayMicroseconds(10);
+    pingTravelTime = pulseIn(echopin, HIGH);
+    delay(25);
+    digitalWrite(trigpin, LOW);
+    Serial.printLn(pingTravelTime);
+    
+}
